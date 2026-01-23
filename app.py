@@ -6,32 +6,50 @@ from flask_cors import CORS
 import joblib
 
 # =========================
-# Load Models
+# Gemini AI
+# =========================
+import google.generativeai as genai
+
+# =========================
+# Load ML Models (UPDATED NAMES)
 # =========================
 
-# Eye Risk Model (pickle)
-with open("eye_risk_model.pkl", "rb") as f:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Eye Vision Risk Model
+with open(os.path.join(BASE_DIR, "eye_vision_risk_model.pkl"), "rb") as f:
     eye_model = pickle.load(f)
 
-# Diabetes Model + Scaler (joblib)
-diabetes_model = joblib.load("diabetes_model.pkl")
-diabetes_scaler = joblib.load("diabetes_scaler.pkl")
+# Diabetes Model & Scaler
+diabetes_model = joblib.load(
+    os.path.join(BASE_DIR, "diabetes_prediction_model.pkl")
+)
+diabetes_scaler = joblib.load(
+    os.path.join(BASE_DIR, "diabetes_scaler.pkl")
+)
 
 # =========================
-# App Setup
+# Gemini Configuration
+# =========================
+genai.configure(
+    api_key=os.environ.get("GEMINI_API_KEY") or "AIzaSyDmnXmATVPgIEsf6wn9QnJUgux4n__G0fk"
+)
+
+# ✅ Correct Gemini model
+gemini_model = genai.GenerativeModel("gemini-1.0-pro")
+
+# =========================
+# Flask App
 # =========================
 app = Flask(__name__)
 CORS(app)
 
-# =========================
-# Home Route
-# =========================
 @app.route("/")
 def home():
     return "MediVision Backend is running"
 
 # =========================
-# Eye Risk Prediction (UNCHANGED)
+# Eye Risk Prediction
 # =========================
 @app.route("/predict-eye-risk", methods=["POST"])
 def predict_eye_risk():
@@ -60,14 +78,13 @@ def predict_eye_risk():
     })
 
 # =========================
-# Diabetes Prediction (NEW – CORRECT WAY)
+# Diabetes Prediction
 # =========================
 @app.route("/predict-diabetes", methods=["POST"])
 def predict_diabetes():
     try:
         data = request.json
 
-        # Input order MUST match training
         features = np.array([[
             float(data["age"]),
             float(data["bmi"]),
@@ -75,21 +92,53 @@ def predict_diabetes():
             float(data["glucose"])
         ]])
 
-        # Scale input
         features_scaled = diabetes_scaler.transform(features)
-
-        # Predict
         prediction = diabetes_model.predict(features_scaled)[0]
-
-        risk = "High Risk" if prediction == 1 else "Low Risk"
 
         return jsonify({
             "prediction": int(prediction),
-            "risk_level": risk
+            "risk_level": "High Risk" if prediction == 1 else "Low Risk"
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+# =========================
+# Health Assistant
+# =========================
+@app.route("/health-assistant", methods=["POST"])
+def health_assistant():
+    try:
+        data = request.json
+        user_message = data.get("message", "").strip()
+
+        if not user_message:
+            return jsonify({"reply": "Please ask a health-related question."})
+
+        prompt = f"""
+You are MediVision Health Assistant.
+
+Rules:
+- Do NOT diagnose diseases
+- Do NOT prescribe medicines
+- Provide general health & lifestyle advice only
+- Always suggest consulting a doctor for serious issues
+
+User question:
+{user_message}
+"""
+
+        response = gemini_model.generate_content(prompt)
+
+        return jsonify({
+            "reply": response.text
+        })
+
+    except Exception as e:
+        print("Gemini Error:", e)
+        return jsonify({
+            "reply": "Health assistant is temporarily unavailable."
+        }), 500
 
 # =========================
 # Run Server
