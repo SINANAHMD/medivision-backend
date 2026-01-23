@@ -11,7 +11,7 @@ import joblib
 import google.generativeai as genai
 
 # =========================
-# Load ML Models (UPDATED NAMES)
+# Load ML Models (UPDATED)
 # =========================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,12 +20,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(BASE_DIR, "eye_vision_risk_model.pkl"), "rb") as f:
     eye_model = pickle.load(f)
 
-# Diabetes Model & Scaler
+# Diabetes Model (SCALER REMOVED)
 diabetes_model = joblib.load(
     os.path.join(BASE_DIR, "diabetes_prediction_model.pkl")
-)
-diabetes_scaler = joblib.load(
-    os.path.join(BASE_DIR, "diabetes_scaler.pkl")
 )
 
 # =========================
@@ -35,7 +32,7 @@ genai.configure(
     api_key=os.environ.get("GEMINI_API_KEY") or "AIzaSyDmnXmATVPgIEsf6wn9QnJUgux4n__G0fk"
 )
 
-# ✅ Correct Gemini model
+# Correct Gemini model
 gemini_model = genai.GenerativeModel("gemini-1.0-pro")
 
 # =========================
@@ -78,7 +75,7 @@ def predict_eye_risk():
     })
 
 # =========================
-# Diabetes Prediction
+# Diabetes Prediction (FIXED)
 # =========================
 @app.route("/predict-diabetes", methods=["POST"])
 def predict_diabetes():
@@ -92,8 +89,7 @@ def predict_diabetes():
             float(data["glucose"])
         ]])
 
-        features_scaled = diabetes_scaler.transform(features)
-        prediction = diabetes_model.predict(features_scaled)[0]
+        prediction = diabetes_model.predict(features)[0]
 
         return jsonify({
             "prediction": int(prediction),
@@ -101,6 +97,7 @@ def predict_diabetes():
         })
 
     except Exception as e:
+        print("Diabetes Error:", e)
         return jsonify({"error": str(e)}), 400
 
 # =========================
