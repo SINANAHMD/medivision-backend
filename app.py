@@ -11,7 +11,7 @@ import joblib
 import google.generativeai as genai
 
 # =========================
-# Load ML Models (UPDATED)
+# Load ML Models
 # =========================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(BASE_DIR, "eye_vision_risk_model.pkl"), "rb") as f:
     eye_model = pickle.load(f)
 
-# Diabetes Model (SCALER REMOVED)
+# Diabetes Model
 diabetes_model = joblib.load(
     os.path.join(BASE_DIR, "diabetes_prediction_model.pkl")
 )
@@ -32,7 +32,6 @@ genai.configure(
     api_key=os.environ.get("GEMINI_API_KEY") or "AIzaSyDmnXmATVPgIEsf6wn9QnJUgux4n__G0fk"
 )
 
-# Correct Gemini model
 gemini_model = genai.GenerativeModel("gemini-1.0-pro")
 
 # =========================
@@ -75,19 +74,29 @@ def predict_eye_risk():
     })
 
 # =========================
-# Diabetes Prediction (FIXED)
+# Diabetes Prediction (FINAL FIX)
 # =========================
 @app.route("/predict-diabetes", methods=["POST"])
 def predict_diabetes():
     try:
         data = request.json
 
-        features = np.array([[
+        # Base inputs from Flutter
+        base_features = [
             float(data["age"]),
             float(data["bmi"]),
             float(data["bp"]),
             float(data["glucose"])
-        ]])
+        ]
+
+        # Match model expected feature count
+        expected_features = diabetes_model.n_features_in_
+        missing = expected_features - len(base_features)
+
+        if missing > 0:
+            base_features.extend([0.0] * missing)
+
+        features = np.array([base_features])
 
         prediction = diabetes_model.predict(features)[0]
 
